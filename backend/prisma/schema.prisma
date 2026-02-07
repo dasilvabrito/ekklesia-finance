@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TREASURER
+  COUNCIL
+  AUDITOR
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  plan      String   @default("FREE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users             User[]
+  categories        AccountCategory[]
+  transactions      Transaction[]
+  auditLogs         AuditLog[]
+
+  @@map("tenants")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(TREASURER)
+  tenantId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  auditLogs AuditLog[]
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+model AccountCategory {
+  id        String          @id @default(uuid())
+  name      String
+  type      TransactionType
+  tenantId  String
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  transactions Transaction[]
+
+  @@index([tenantId])
+  @@map("account_categories")
+}
+
+model Transaction {
+  id           String          @id @default(uuid())
+  amount       Decimal         @db.Decimal(10, 2)
+  date         DateTime
+  description  String?
+  categoryId   String
+  tenantId     String
+  attachmentUrl String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  category AccountCategory @relation(fields: [categoryId], references: [id])
+
+  @@index([tenantId])
+  @@index([date])
+  @@map("transactions")
+}
+
+model AuditLog {
+  id        String      @id @default(uuid())
+  action    AuditAction
+  resource  String
+  details   String?
+  ipAddress String?
+  userId    String?
+  tenantId  String
+  createdAt DateTime    @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@map("audit_logs")
+}
